@@ -40,6 +40,11 @@ def assign_roles(p, roles_config):
         player = players.pop(0)
         player.set_role(actual_role)
 
+def run_day_phase(channel, players):
+    pass
+
+def run_night_phase(channel, players):
+    pass
 
 def is_game_over(game):
     alive_players = [p for p in game["players"] if p.is_alive]

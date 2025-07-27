@@ -6,6 +6,7 @@ import random
 import datetime
 import asyncio
 import dotenv
+from gtts import gTTS
 #import pyttsx3
 import os
 from player import Player
@@ -162,7 +163,7 @@ async def begin_palermo(interaction: discord.Integration):
     channel_id = interaction.channel.id
     game = active_games.get(channel_id)
 
-    if not game or len(game["players"]) < 1:
+    if not game or len(game["players"]) < 5:
         await interaction.response.send_message("Πρέπει να υπάρχουν τουλάχιστον 5 παίκτες για να ξεκινήσει το παιχνίδι!")
         return
     
@@ -172,9 +173,16 @@ async def begin_palermo(interaction: discord.Integration):
     assign_roles(players, roles_config)
     await interaction.response.send_message(f"🎲 Μοιράστηκαν ρόλοι στους παίκτες! Καλή τύχη σε όλους!")
     for player in players:
-        await player.followup.send(f"{player.display_name} ο ρόλος σου είναι {player.get_role().get_rolename()}! {player.get_role().get_description()}.\n Μπορείς σε οποιαδήποτε στιγμή στο παιχνίδι να κάνεις /get_description για να δεις ποιός είναι ο ρόλος σου.", ephemeral=True)
+        guild = interaction.guild
+        member = guild.get_member(player.user_id)
+        try:
+            await member.send(f"👤 Ο ρόλος σου είναι **{player.get_role().get_rolename()}**\n{player.get_role().get_description()}\n Μπορείς σε οποιαδήποτε στιγμή στο παιχνίδι να κάνεις /get_description για να δεις ποιός είναι ο ρόλος σου.")
+        except Exception as e:
+            print(f"❌ Couldn't DM {player.display_name}: {e}")
+    
+    await start_story_narration(interaction, voice=True)
 
-@tree.command(name="stopgame", description="Σταμάτα το τρέχον παιχνίδι στο κανάλι.")
+@tree.command(name="stopgame", description="Σταμάτα το τρέχον παιχνίδι στο κανάλι.", guild=discord.Object(id=GUILD_ID))
 async def stop_game(interaction: discord.Interaction):
     channel_id = interaction.channel.id
 
@@ -184,6 +192,54 @@ async def stop_game(interaction: discord.Interaction):
 
     del active_games[channel_id]
     await interaction.response.send_message("Το παιχνίδι σταμάτησε. 👋")
+
+
+async def start_story_narration(interaction, voice: bool = False):
+    story = (
+        "🌙 Το χωριό κοιμάται... αλλά όχι όλοι. Κάπου κρύβεται ένας δολοφόνος.\n"
+        "Οι παίκτες θα πρέπει να ανακαλύψουν ποιος είναι, πριν να είναι πολύ αργά.\n"
+        "Καληνύχτα... και καλή τύχη. 💀"
+    )
+
+    await interaction.channel.send(story)
+
+    if voice:
+        if interaction.user.voice and interaction.user.voice.channel:
+            vc_channel = interaction.user.voice.channel
+            try:
+                vc = await vc_channel.connect()
+                tts = gTTS(story, lang='el')
+                tts.save("intro.mp3")
+
+                ffmpeg_path = os.path.join(os.path.dirname(__file__), "ffmpeg.exe")
+                print("FFMPEG path:", ffmpeg_path)  # για debug
+                if not vc.is_playing():
+                    vc.play(discord.FFmpegPCMAudio("intro.mp3", executable=ffmpeg_path))
+
+                # Περίμενε μέχρι να τελειώσει
+                while vc.is_playing():
+                    await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=1))
+                os.remove("intro.mp3")
+                await vc_channel.disconnect()
+            except Exception as e:
+                print(f"⚠️ Voice error: {e}")
+
+async def game_loop(channel, players):
+    phase = "night"
+    game_over = False
+
+    while not game_over:
+        if phase == "night":
+            await channel.send("🌙 Η νύχτα έπεσε. Όλοι κλείνουν τα μάτια τους...")
+            await run_night_phase(channel, players)
+            phase = "day"
+
+        elif phase == "day":
+            await channel.send("☀️ Ξημέρωσε στο χωριό! Ώρα για συζήτηση και ψηφοφορία.")
+            await run_day_phase(channel, players)
+            phase = "night"
+
+        game_over = is_game_over(players)
 
 # <3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3 
 bot.run(TOKEN)
