@@ -24,7 +24,8 @@ class Player:
     def reset_votes(self):
         self.votes = 0    
 
-
+    def getUserId(self):
+        return self.user_id
 
 
 

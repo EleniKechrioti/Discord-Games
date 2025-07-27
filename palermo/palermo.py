@@ -11,6 +11,9 @@ import os
 from player import Player
 from characters import characters
 from roleinfoview import *
+from logic import assign_roles, is_game_over
+from role import Role
+from roleselection import *
 
 dotenv.load_dotenv()
 
@@ -103,11 +106,11 @@ async def get_description(interaction: discord.Interaction):
         await interaction.response.send_message("❗ Δεν έχεις πάρει ακόμα ρόλο.", ephemeral=True)
         return
     
-    role_title = role.get("title", "Άγνωστος Ρόλος")
-    role_desc = role.get("description", "Δεν υπάρχει περιγραφή.")
+    role_title = role.get_rolename()
+    role_desc = role.get_description()
 
     await interaction.response.send_message(
-        f"🔍 Ο ρόλος σου είναι **{role_title}**\n\n{role_desc}",
+        f"🔍 Ο ρόλος σου είναι **{role_title}**\n\n{role_desc}.",
         ephemeral=True
     )
 
@@ -116,39 +119,20 @@ async def roleinfo(interaction: discord.Interaction):
     view = RoleInfoView()
     await interaction.response.send_message("Διάλεξε έναν ρόλο από το dropdown:", view=view, ephemeral=True)
 
-@tree.command(name="set_roles", description="Ορίζονται οι ρόλοι του παιχνιδιού", guild=discord.Object(id=GUILD_ID))
+
+@tree.command(name="set_roles", description="Ορίζει ρόλους παιχνιδιού", guild=discord.Object(id=GUILD_ID))
 async def set_roles(interaction: discord.Interaction):
     channel_id = interaction.channel.id
 
     if channel_id not in active_games:
         await interaction.response.send_message("Δεν υπάρχει ενεργό παιχνίδι σε αυτό το κανάλι.")
         return
-    
-    available_roles = [role["name"] for role in characters]
 
-    msg = "Ανέθεσε τους ρόλους που θα υπάρχουν στο παιχνίδι. Γράψε τους ρόλους και την ποσότητα που θα υπάρχουν στο παιχνίδι. Οι ρόλοι είναι οι εξής:\n\n" 
-    msg += "\n".join([f"• {r}" for r in available_roles])
-    msg += "\n\nΓράψε απαντώτας σε αυτό το μήνυμα, π.χ. Πολίτης:2, Αστυνομικός:1, Κρυφός Δολοφόνος:1"
+    await interaction.response.send_message(
+        "🎭 Ξεκινά η διαμόρφωση ρόλων. Επίλεξε ρόλο από τη λίστα:",
+        view=RoleSetupView(active_games)
+    )
 
-    await interaction.response.defer()
-    await interaction.followup.send(msg)
-
-    def check(m):
-        return m.author == interaction.user and m.channel == interaction.channel
-
-    try:
-        reply = await bot.wait_for("message", timeout=180.0, check=check)
-        role_counts = {}
-        parts = reply.content.split(', ')
-
-        for part in parts:
-            key, val = part.strip().split(':')
-            role_counts[key.strip()] = int(val.strip())
-
-        active_games[channel_id]["roles_config"] = role_counts
-        await interaction.channel.send(f"✅ Οι ρόλοι ορίστηκαν: {role_counts}")
-    except Exception as e:
-        await interaction.channel.send(f"Σφάλμα: {str(e)}")
 
 @tree.command(name="status", description="Δες αν είσαι ζωντανός ή νεκρός", guild=discord.Object(id=GUILD_ID))
 async def status(interaction: discord.Interaction):
@@ -178,12 +162,28 @@ async def begin_palermo(interaction: discord.Integration):
     channel_id = interaction.channel.id
     game = active_games.get(channel_id)
 
-    if not game or len(game["players"]) < 5:
+    if not game or len(game["players"]) < 1:
         await interaction.response.send_message("Πρέπει να υπάρχουν τουλάχιστον 5 παίκτες για να ξεκινήσει το παιχνίδι!")
         return
     
     players = game["players"]
     roles_config = game.get("roles_config", {})
+
+    assign_roles(players, roles_config)
+    await interaction.response.send_message(f"🎲 Μοιράστηκαν ρόλοι στους παίκτες! Καλή τύχη σε όλους!")
+    for player in players:
+        await player.followup.send(f"{player.display_name} ο ρόλος σου είναι {player.get_role().get_rolename()}! {player.get_role().get_description()}.\n Μπορείς σε οποιαδήποτε στιγμή στο παιχνίδι να κάνεις /get_description για να δεις ποιός είναι ο ρόλος σου.", ephemeral=True)
+
+@tree.command(name="stopgame", description="Σταμάτα το τρέχον παιχνίδι στο κανάλι.")
+async def stop_game(interaction: discord.Interaction):
+    channel_id = interaction.channel.id
+
+    if channel_id not in active_games:
+        await interaction.response.send_message("Δεν υπάρχει ενεργό παιχνίδι σε αυτό το κανάλι.", ephemeral=True)
+        return
+
+    del active_games[channel_id]
+    await interaction.response.send_message("Το παιχνίδι σταμάτησε. 👋")
 
 # <3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3 
 bot.run(TOKEN)
