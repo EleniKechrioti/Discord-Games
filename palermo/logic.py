@@ -11,7 +11,7 @@ EMOJIS = ["0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6�
 ]
 basic_roles = [(role["name"], role["num_of_players"]) for role in characters if role["is_main_role"]]
 
-
+last_voted_out = None
 
 def assign_roles(p, roles_config):
     players = p.copy()
@@ -78,12 +78,12 @@ async def run_day_phase(channel, players, bot):
             and not user.bot
             and reaction.emoji in emoji_map
             and player is not None
-            and player.is_alive  # <--- Εδώ το φίλτρο
+            and player.alive  # <--- Εδώ το φίλτρο
         )
 
     def get_player_by_id(user_id):
         for p in players:
-            if p.discord_user.id == user_id:
+            if p.user_id == user_id:
                 return p
         return None
 
@@ -95,21 +95,20 @@ async def run_day_phase(channel, players, bot):
             vote_tracker[user_id] = None
 
         current_vote = vote_tracker[user_id]
-
-        if is_add:
-            # Remove vote from previous emoji (if any)
-            if current_vote and current_vote != emoji:
-                emoji_map[current_vote].votes -= 1
-            vote_tracker[user_id] = emoji
-            emoji_map[emoji].add_vote()
-        else:
-            # Remove only if the removed emoji matches current vote
-            if current_vote == emoji:
-                vote_tracker[user_id] = None
-                emoji_map[emoji].votes -= 1
-        if not player.is_alive:
-            await reaction.message.remove_reaction(reaction.emoji, user)
+        if player.alive == False:
             await channel.send(f"{user.mention}, είσαι νεκρός 💀. Δεν ψηφίζεις πλέον.")
+        else:
+            if is_add:
+                # Remove vote from previous emoji (if any)
+                if current_vote and current_vote != emoji:
+                    emoji_map[current_vote].votes -= 1
+                vote_tracker[user_id] = emoji
+                emoji_map[emoji].add_vote()
+            else:
+                # Remove only if the removed emoji matches current vote
+                if current_vote == emoji:
+                    vote_tracker[user_id] = None
+                    emoji_map[emoji].votes -= 1
 
     # Wait loop with timeout
     while True:
@@ -130,11 +129,14 @@ async def run_day_phase(channel, players, bot):
 
     # --- Count Votes ---
     voted_out = determine_elimination(players)
+    global last_voted_out 
+    last_voted_out = voted_out
     if voted_out:
-        voted_out.kill()
+        voted_out.die()
         await channel.send(f"💀 Ο **{voted_out.display_name}** εκτελέστηκε από το χωριό.")
     else:
         await channel.send("😐 Κανείς δεν πήρε αρκετές ψήφους. Δεν εκτελέστηκε κανείς.")
+    #return voted_out
 
 def run_night_phase(channel, players, bot):
     pass
@@ -149,7 +151,7 @@ async def wait_for_reaction_remove(bot, check_event):
 
 
 def determine_elimination(players):
-    alive = [p for p in players if p.is_alive()]
+    alive = [p for p in players if p.alive]
     max_votes = max((p.votes for p in alive), default=0)
     top_voted = [p for p in alive if p.votes == max_votes and max_votes > 0]
     if len(top_voted) == 1:
@@ -157,16 +159,18 @@ def determine_elimination(players):
     return None 
 
 
-def is_game_over(players):
-    alive_players = [p for p in players if p.is_alive]
-    mafia_count = sum(1 for p in alive_players if p.role.alignment == "Bad")
+def is_game_over(players, phase):
+    alive_players = [p for p in players if p.alive]
+    mafia_count = sum(1 for p in alive_players if p.role.alignment == "Evil")
     town_count = sum(1 for p in alive_players if p.role.alignment == "Good")
-
+    trela_died=False
+    if last_voted_out != None:
+        if last_voted_out.role.role_name == "Τρέλα":
+            trela_died = True
     if mafia_count == 0:
-        return "good"
-    elif mafia_count >= town_count:
-        return "bad"
-    return None
-
-
-
+        return True, "καλοί"
+    elif mafia_count > town_count:
+        return True, "κακοί"
+    elif trela_died and phase =="day":
+        return True, "Τρέλα"    
+    return None, None

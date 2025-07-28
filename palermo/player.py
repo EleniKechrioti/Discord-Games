@@ -15,7 +15,8 @@ class Player:
     def is_alive(self):
         return self.alive
     
-    def kill(self):
+    def die(self):
+        print("psofa gamo.")
         self.alive = False
 
     def add_vote(self):

@@ -181,7 +181,8 @@ async def begin_palermo(interaction: discord.Integration):
             print(f"❌ Couldn't DM {player.display_name}: {e}")
     
     await start_story_narration(interaction, voice=True)
-    await game_loop(interaction.channel, players)
+    win = await game_loop(interaction.channel, players)
+    await interaction.channel.send(f"Νίκησαν οι **{win}**!")
 
 @tree.command(name="stopgame", description="Σταμάτα το τρέχον παιχνίδι στο κανάλι.", guild=discord.Object(id=GUILD_ID))
 async def stop_game(interaction: discord.Interaction):
@@ -197,8 +198,8 @@ async def stop_game(interaction: discord.Interaction):
 
 async def start_story_narration(interaction, voice: bool = False):
     story = (
-        "🌙 Το χωριό κοιμάται... αλλά όχι όλοι. Κάπου κρύβεται ένας δολοφόνος.\n"
-        "Οι παίκτες θα πρέπει να ανακαλύψουν ποιος είναι, πριν να είναι πολύ αργά.\n"
+        "🌙 Το χωριό κοιμάται... αλλά όχι όλοι. Κάπου κρύβονται 2 δολοφόνοι.\n"
+        "Οι παίκτες θα πρέπει να ανακαλύψουν ποιοί είναι, πριν να είναι πολύ αργά.\n"
         "Καληνύχτα... και καλή τύχη. 💀"
     )
 
@@ -231,7 +232,7 @@ async def game_loop(channel, players):
     while not game_over:
         if phase == "night":
             await channel.send("🌙 Η νύχτα έπεσε. Όλοι κλείνουν τα μάτια τους...")
-            #await run_night_phase(channel, players,bot)
+            #await run_night_phase(channel, players, bot)
             phase = "day"
 
         elif phase == "day":
@@ -239,7 +240,8 @@ async def game_loop(channel, players):
             await run_day_phase(channel, players, bot)
             phase = "night"
 
-        game_over = is_game_over(players)
+        game_over, win = is_game_over(players, "day" if phase == "night" else "night")
+    return win
 
-# <3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3 
+# <3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3<3 (❤️ ω ❤️)
 bot.run(TOKEN)
