@@ -12,7 +12,7 @@ import os
 from player import Player
 from characters import characters
 from roleinfoview import *
-from logic import assign_roles, is_game_over
+from logic import *
 from role import Role
 from roleselection import *
 
@@ -163,7 +163,7 @@ async def begin_palermo(interaction: discord.Integration):
     channel_id = interaction.channel.id
     game = active_games.get(channel_id)
 
-    if not game or len(game["players"]) < 5:
+    if not game or len(game["players"]) < 1:
         await interaction.response.send_message("Πρέπει να υπάρχουν τουλάχιστον 5 παίκτες για να ξεκινήσει το παιχνίδι!")
         return
     
@@ -181,6 +181,7 @@ async def begin_palermo(interaction: discord.Integration):
             print(f"❌ Couldn't DM {player.display_name}: {e}")
     
     await start_story_narration(interaction, voice=True)
+    await game_loop(interaction.channel, players)
 
 @tree.command(name="stopgame", description="Σταμάτα το τρέχον παιχνίδι στο κανάλι.", guild=discord.Object(id=GUILD_ID))
 async def stop_game(interaction: discord.Interaction):
@@ -227,16 +228,15 @@ async def start_story_narration(interaction, voice: bool = False):
 async def game_loop(channel, players):
     phase = "night"
     game_over = False
-
     while not game_over:
         if phase == "night":
             await channel.send("🌙 Η νύχτα έπεσε. Όλοι κλείνουν τα μάτια τους...")
-            await run_night_phase(channel, players)
+            #await run_night_phase(channel, players,bot)
             phase = "day"
 
         elif phase == "day":
             await channel.send("☀️ Ξημέρωσε στο χωριό! Ώρα για συζήτηση και ψηφοφορία.")
-            await run_day_phase(channel, players)
+            await run_day_phase(channel, players, bot)
             phase = "night"
 
         game_over = is_game_over(players)
