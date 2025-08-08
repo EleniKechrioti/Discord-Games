@@ -95,7 +95,7 @@ async def run_day_phase(channel, players, bot):
             vote_tracker[user_id] = None
 
         current_vote = vote_tracker[user_id]
-        if player.alive == False:
+        if  not player or not player.alive:
             await channel.send(f"{user.mention}, είσαι νεκρός 💀. Δεν ψηφίζεις πλέον.")
         else:
             if is_add:

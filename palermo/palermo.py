@@ -154,7 +154,7 @@ async def status(interaction: discord.Interaction):
         await interaction.response.send_message("Δεν συμμετέχεις στο παιχνίδι.", ephemeral=True)
         return
 
-    status = "🟢 Είσαι **ζωντανός**!" if player.is_alive else "🔴 Είσαι **νεκρός**."
+    status = "🟢 Είσαι **ζωντανός**!" if player.is_alive() else "🔴 Είσαι **νεκρός**."
 
     await interaction.response.send_message(status, ephemeral=True)
 
